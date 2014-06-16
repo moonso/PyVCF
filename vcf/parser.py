@@ -7,16 +7,17 @@ import itertools
 import os
 import re
 import sys
+
+from pprint import pprint as pp
+
 try:
     from collections import OrderedDict
 except ImportError:
     from ordereddict import OrderedDict
 
 try:
-     # Python 2
-     from itertools import izip
+    from iteritems import izip
 except ImportError:
-    # Python 3
     izip = zip
 
 try:
@@ -638,30 +639,31 @@ class Writer(object):
         # get a maximum key).
         self.info_order = collections.defaultdict(
             lambda: len(template.infos),
-            dict(zip(template.infos.iterkeys(), itertools.count())))
+            dict(zip(template.infos.keys(), itertools.count())))
 
         two = '##{key}=<ID={0},Description="{1}">\n'
         four = '##{key}=<ID={0},Number={num},Type={2},Description="{3}">\n'
         _num = self._fix_field_count
-        for (key, vals) in template.metadata.iteritems():
+        for key in template.metadata.keys():
             if key in SINGULAR_METADATA:
-                vals = [vals]
-            for val in vals:
+                template.metadata[key] = [template.metadata[key]]
+            for val in template.metadata[key]:
+                # pp(val)
                 if isinstance(val, dict):
-                    values = ','.join('{0}={1}'.format(key, value)
-                                      for key, value in val.items())
+                    values = ','.join('{0}={1}'.format(key, val[key])
+                                      for key in val)
                     stream.write('##{0}=<{1}>\n'.format(key, values))
                 else:
                     stream.write('##{0}={1}\n'.format(key, val))
-        for line in template.infos.itervalues():
+        for line in template.infos.values():
             stream.write(four.format(key="INFO", *line, num=_num(line.num)))
-        for line in template.formats.itervalues():
+        for line in template.formats.values():
             stream.write(four.format(key="FORMAT", *line, num=_num(line.num)))
-        for line in template.filters.itervalues():
+        for line in template.filters.values():
             stream.write(two.format(key="FILTER", *line))
-        for line in template.alts.itervalues():
+        for line in template.alts.values():
             stream.write(two.format(key="ALT", *line))
-        for line in template.contigs.itervalues():
+        for line in template.contigs.values():
             stream.write('##contig=<ID={0},length={1}>\n'.format(*line))
 
         self._write_header()
@@ -772,25 +774,3 @@ def __update_readme():
 VCFReader = Reader
 VCFWriter = Writer
 
-@click.command()
-# @click.argument('variant_file',
-#                 nargs=1,
-#                 type=click.File('r'),
-#                 metavar='<vcf_file> or "-"',
-#                 )
-@click.argument('variant_file',
-                nargs=1,
-                type=click.Path(exists=True),
-                metavar='<vcf_file> or "-"',
-                )
-def test_reader(variant_file):
-    """Check behaviour with different types of input."""
-    # Create read iter object using stream or file
-    # if variant_file == '-':
-    # vcf_reader = Reader(fsock=variant_file)
-    vcf_reader = Reader(filename=variant_file)
-    for record in vcf_reader:
-        print(record)
-
-if __name__ == '__main__':
-    test_reader()
