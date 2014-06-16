@@ -1,4 +1,5 @@
 import codecs
+import click
 import collections
 import csv
 import gzip
@@ -6,11 +7,17 @@ import itertools
 import os
 import re
 import sys
-
 try:
     from collections import OrderedDict
 except ImportError:
     from ordereddict import OrderedDict
+
+try:
+     # Python 2
+     from itertools import izip
+except ImportError:
+    # Python 3
+    izip = zip
 
 try:
     import pysam
@@ -302,7 +309,7 @@ class Reader(object):
 
         parser = _vcf_metadata_parser()
 
-        line = self.reader.next()
+        line = next(self.reader)
         while line.startswith('##'):
             self._header_lines.append(line)
 
@@ -335,7 +342,7 @@ class Reader(object):
                         self.metadata[key] = []
                     self.metadata[key].append(val)
 
-            line = self.reader.next()
+            line = next(self.reader)
 
         fields = re.split(self._separator, line[1:])
         self._column_headers = fields[:9]
@@ -442,7 +449,7 @@ class Reader(object):
 
         nfields = len(samp_fmt._fields)
 
-        for name, sample in itertools.izip(self.samples, samples):
+        for name, sample in izip(self.samples, samples):
 
             # parse the data for this sample
             sampdat = [None] * nfields
@@ -522,8 +529,12 @@ class Reader(object):
             return _Substitution(str)
 
     def next(self):
+        """For backwards compability with 2.x"""
+        return self.__next__()
+    
+    def __next__(self):
         '''Return the next record in the file.'''
-        line = self.reader.next()
+        line = next(self.reader)
         row = re.split(self._separator, line.rstrip())
         chrom = row[0]
         if self._prepend_chr:
@@ -616,7 +627,7 @@ class Writer(object):
     """VCF Writer. On Windows Python 2, open stream with 'wb'."""
 
     # Reverse keys and values in header field count dictionary
-    counts = dict((v,k) for k,v in field_counts.iteritems())
+    counts = dict((field_counts[k],k) for k in field_counts)
 
     def __init__(self, stream, template, lineterminator="\n"):
         self.writer = csv.writer(stream, delimiter="\t", lineterminator=lineterminator)
@@ -760,3 +771,26 @@ def __update_readme():
 # backwards compatibility
 VCFReader = Reader
 VCFWriter = Writer
+
+@click.command()
+# @click.argument('variant_file',
+#                 nargs=1,
+#                 type=click.File('r'),
+#                 metavar='<vcf_file> or "-"',
+#                 )
+@click.argument('variant_file',
+                nargs=1,
+                type=click.Path(exists=True),
+                metavar='<vcf_file> or "-"',
+                )
+def test_reader(variant_file):
+    """Check behaviour with different types of input."""
+    # Create read iter object using stream or file
+    # if variant_file == '-':
+    # vcf_reader = Reader(fsock=variant_file)
+    vcf_reader = Reader(filename=variant_file)
+    for record in vcf_reader:
+        print(record)
+
+if __name__ == '__main__':
+    test_reader()
